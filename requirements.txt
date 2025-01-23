@@ -1,5 +1,7 @@
 bcrypt
-fastapi
-jwt
+fastapi[standard]
+pyjwt
 psycopg2
+pydantic
+python-dotenv
 requests
