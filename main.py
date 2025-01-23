@@ -95,7 +95,6 @@ def login(data: Login):
 def get_fund_families():
     try:
         response = call_api({"Scheme_Type": "Open"})
-        print(response)
         return {
             "fund_families": list(
                 set(
@@ -116,6 +115,8 @@ def get_fund_families():
 def get_all_schemes(mutual_fund_family: str):
     try:
         response = call_api({"Scheme_Type": "Open", "Mutual_Fund_Family": mutual_fund_family})
+        if not isinstance(response, list):
+            raise response["message"]
         return {
             "schemes": response
         }
@@ -139,6 +140,14 @@ def get_portfolio(req: Request):
         """, {"user_id": id})
         data = cur.fetchall()
         cur.close()
+
+        if len(data) == 0:
+            return {
+                "investments": [],
+                "total_value": 0,
+                "total_investments": 0,
+                "percentage_increase": 0
+            }
 
         response = call_api({
             "Scheme_Type": "Open", 
@@ -168,7 +177,6 @@ def invest_in_scheme(req: Request, data: Portfolio):
         id = req.state.user["id"]
         scheme_code = data.scheme_code
         response = call_api({"Scheme_Type": "Open", "Scheme_Code": [scheme_code]})
-        print(response)
 
         investment_data = {
             "user_id": id,
@@ -199,7 +207,7 @@ def invest_in_scheme(req: Request, data: Portfolio):
 
 
 @app.delete("/portfolio/{scheme_code}")
-def withdraw_from_scheme(req: Request, scheme_code: str):
+def withdraw_from_scheme(req: Request, scheme_code: int):
     try:
         id = req.state.user["id"]
 
