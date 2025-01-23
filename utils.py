@@ -48,8 +48,6 @@ def call_api(querystring):
 
     url = f"https://{os.getenv('RAPID_API_HOST')}/latest"
 
-    # querystring = {"Mutual_Fund_Family":"mmm","Scheme_Type":"Open","Scheme_Code":"12111,86888"}
-
     headers = {
         "x-rapidapi-key": os.getenv("RAPID_API_KEY"),
         "x-rapidapi-host": os.getenv("RAPID_API_HOST")

@@ -14,7 +14,7 @@ CREATE TABLE portfolio
 (
     id bigserial NOT NULL,
     user_id bigint,
-    mutual_fund_family character varying(50),
+    investment_value numeric,
     scheme_code bigint,
     is_delete boolean,
     created_at timestamp with time zone,

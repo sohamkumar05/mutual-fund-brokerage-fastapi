@@ -16,7 +16,6 @@ app.add_middleware(TokenDecodeMiddleware)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 conn = Connection().get_connection()
-cur = conn.cursor(cursor_factory=CURSOR_FACTORY)
 
 
 @app.post("/register")
@@ -30,7 +29,7 @@ def register(data: Register):
             "timestamp": datetime.now()
         }
 
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=CURSOR_FACTORY)
         cur.execute("""
             INSERT INTO users (name, email, password, created_at, updated_at)
             VALUES (%(name)s, %(email)s, %(password)s, %(timestamp)s, %(timestamp)s)
@@ -38,6 +37,7 @@ def register(data: Register):
         """, insert_data)
         conn.commit()
         user_data = cur.fetchone()
+        cur.close()
 
         token = generate_jwt_token(
             {"email": data.email, "id": user_data["id"]}
@@ -58,11 +58,14 @@ def login(data: Login):
         fetch_data = {
             "email": data.email
         }
+
+        cur = conn.cursor(cursor_factory=CURSOR_FACTORY)
         cur.execute(
             """SELECT id, password FROM users where email = %(email)s""",
             fetch_data
         )
         user_data = cur.fetchone()
+        cur.close()
         if user_data is None:
             return JSONResponse(
                 content={"Error": "User Not Found"},
@@ -129,11 +132,13 @@ def get_portfolio(req: Request):
     try:
         id = req.state.user["id"]
 
+        cur = conn.cursor(cursor_factory=CURSOR_FACTORY)
         cur.execute("""
         SELECT scheme_code, investment_value from portfolio
         WHERE is_delete = false and user_id = %(user_id)s
         """, {"user_id": id})
         data = cur.fetchall()
+        cur.close()
 
         response = call_api({
             "Scheme_Type": "Open", 
@@ -142,7 +147,7 @@ def get_portfolio(req: Request):
 
         total_value = sum([res["Net_Asset_Value"] for res in response])
         total_investments = sum([res["investment_value"] for res in data])
-        percentage_increase = (total_value - float(total_investments)) * 100 / float(total_investments)
+        percentage_increase = 0 if total_investments == 0 else (total_value - float(total_investments)) * 100 / float(total_investments)
 
         return {
             "investments": response,
@@ -163,6 +168,7 @@ def invest_in_scheme(req: Request, data: Portfolio):
         id = req.state.user["id"]
         scheme_code = data.scheme_code
         response = call_api({"Scheme_Type": "Open", "Scheme_Code": [scheme_code]})
+        print(response)
 
         investment_data = {
             "user_id": id,
@@ -170,6 +176,7 @@ def invest_in_scheme(req: Request, data: Portfolio):
             "scheme_code": scheme_code,
             "timestamp": datetime.now()
         }
+        cur = conn.cursor(cursor_factory=CURSOR_FACTORY)
         cur.execute("""
         INSERT INTO portfolio (
                 user_id, investment_value, scheme_code, is_delete,
@@ -180,6 +187,7 @@ def invest_in_scheme(req: Request, data: Portfolio):
             )
         """, investment_data)
         conn.commit()
+        cur.close()
 
         return {"message": "Scheme successfully added to portfolio."}
     except Exception as e:
@@ -190,22 +198,23 @@ def invest_in_scheme(req: Request, data: Portfolio):
         )
 
 
-@app.delete("/portfolio")
-def withdraw_from_scheme(req: Request, data: Portfolio):
+@app.delete("/portfolio/{scheme_code}")
+def withdraw_from_scheme(req: Request, scheme_code: str):
     try:
         id = req.state.user["id"]
-        scheme_code = data.scheme_code
 
         investment_data = {
             "user_id": id,
             "scheme_code": scheme_code,
             "timestamp": datetime.now()
         }
+        cur = conn.cursor(cursor_factory=CURSOR_FACTORY)
         cur.execute("""
             UPDATE portfolio set is_delete = true, updated_at = %(timestamp)s
             where user_id = %(user_id)s and scheme_code = %(scheme_code)s
         """, investment_data)
         conn.commit()
+        cur.close()
 
         return {"message": "Scheme successfully removed from portfolio."}
     except Exception as e:
