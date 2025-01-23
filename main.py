@@ -126,8 +126,36 @@ def get_all_schemes(mutual_fund_family: str):
 
 @app.get("/portfolio")
 def get_portfolio(req: Request):
-    pass
+    try:
+        id = req.state.user["id"]
 
+        cur.execute("""
+        SELECT scheme_code, investment_value from portfolio
+        WHERE is_delete = false and user_id = %(user_id)s
+        """, {"user_id": id})
+        data = cur.fetchall()
+
+        response = call_api({
+            "Scheme_Type": "Open", 
+            "Scheme_Code": ",".join([str(row["scheme_code"]) for row in data])
+        })
+
+        total_value = sum([res["Net_Asset_Value"] for res in response])
+        total_investments = sum([res["investment_value"] for res in data])
+        percentage_increase = (total_value - float(total_investments)) * 100 / float(total_investments)
+
+        return {
+            "investments": response,
+            "total_value": total_value,
+            "total_investments": total_investments,
+            "percentage_increase": percentage_increase
+        }
+    except Exception as e:
+        print(e)
+        return JSONResponse(
+            content={"Error": "Internal Server Error"},
+            status_code=500
+        )
 
 @app.post("/portfolio")
 def invest_in_scheme(req: Request, data: Portfolio):
@@ -147,7 +175,7 @@ def invest_in_scheme(req: Request, data: Portfolio):
                 user_id, investment_value, scheme_code, is_delete,
                 created_at, updated_at
             ) values (
-                %(user_id)s, %(investment_value)s, %(scheme_code)s, true,
+                %(user_id)s, %(investment_value)s, %(scheme_code)s, false,
                 %(timestamp)s, %(timestamp)s
             )
         """, investment_data)
@@ -174,7 +202,7 @@ def withdraw_from_scheme(req: Request, data: Portfolio):
             "timestamp": datetime.now()
         }
         cur.execute("""
-            UPDATE portfolio set is_delete = false, updated_at = %(timestamp)s
+            UPDATE portfolio set is_delete = true, updated_at = %(timestamp)s
             where user_id = %(user_id)s and scheme_code = %(scheme_code)s
         """, investment_data)
         conn.commit()
